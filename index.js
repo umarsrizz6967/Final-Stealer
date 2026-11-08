@@ -1,23 +1,23 @@
 const { chromium } = require('playwright-core');
 const path = require('path');
 const os = require('os');
+const fs = require('fs');
 
 (async () => {
-    // 1. Detect your OS and find the correct User Data Path
+    // 1. Detect OS and find the correct User Data Path
     let userDataDir;
     
     if (process.platform === 'win32') {
-        // Windows: Chrome / Edge
+        // Windows: Try Chrome first, then Edge
         const chromePath = path.join(process.env.LOCALAPPDATA, "Google", "Chrome", "User Data");
         const edgePath = path.join(process.env.LOCALAPPDATA, "Microsoft", "Edge", "User Data");
         
-        // Try Chrome first, fallback to Edge
-        userDataDir = require('fs').existsSync(chromePath) ? chromePath : edgePath;
+        userDataDir = fs.existsSync(chromePath) ? chromePath : edgePath;
     } else if (process.platform === 'darwin') {
         // Mac
         userDataDir = path.join(os.homedir(), "Library", "Application Support", "Google", "Chrome");
     } else {
-        // Linux (Chromium/Firefox paths vary, using Chromium as base)
+        // Linux
         userDataDir = path.join(os.homedir(), ".config", "google-chrome");
     }
 
@@ -25,7 +25,7 @@ const os = require('os');
 
     try {
         // 2. Launch the browser using YOUR existing profile
-        // headless: false lets you see what's happening
+        // headless: false lets you see the window so you can verify it's working
         const browserContext = await chromium.launchPersistentContext(userDataDir, {
             headless: false, 
             slowMo: 500,
@@ -74,8 +74,7 @@ const os = require('os');
     } catch (error) {
         console.error("❌ Error:", error.message);
     } finally {
-        // Note: We don't close the context immediately because you might want to keep the browser open
-        // If you want it to close automatically, uncomment the next line:
+        // We don't close immediately so you can inspect the window if needed
         // await browserContext.close();
     }
 })();
