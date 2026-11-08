@@ -1,52 +1,47 @@
-const { chromium } = require('playwright');
+const { chromium } = require('playwright-core');
 
 (async () => {
-    console.log("Launching browser...");
+    // 1. Get your token from Environment Variables or Dashboard
+    const token = process.env.BROWSERLESS_TOKEN;
     
-    // Launch in headless mode (no visible window)
-    const browser = await chromium.launch({ 
-        headless: true, 
-        args: ['--no-sandbox']
-    });
+    if (!token) {
+        console.error("❌ Missing BROWSERLESS_TOKEN environment variable.");
+        process.exit(1);
+    }
 
-    const context = await browser.newContext();
-    const page = await context.newPage();
+    // 2. Connect to Browserless
+    // Use the endpoint provided in your Browserless dashboard
+    const wsEndpoint = `wss://production-sfo.browserless.io?token=${token}`;
+    
+    console.log(`Connecting to Browserless at: ${wsEndpoint.split('?')[0]}...`);
 
     try {
-        // 1. Navigate to Roblox Home
+        const browser = await chromium.connectOverCDP(wsEndpoint);
+
+        // 3. Create a new page context
+        const context = await browser.newContext();
+        const page = await context.newPage();
+
+        // 4. Navigate to Roblox
         console.log("Navigating to Roblox...");
         await page.goto('https://www.roblox.com/', { waitUntil: 'networkidle' });
 
-        // 2. Get all cookies from the current session
+        // 5. Fetch Cookies
         const cookies = await page.context().cookies();
-
-        // 3. Look for the security cookie
         const robloxCookie = cookies.find(c => c.name === '.ROBLOSECURITY');
 
         if (!robloxCookie) {
             console.log("❌ Not logged in. No .ROBLOSECURITY cookie found.");
             console.log("Stopping execution as requested.");
-            return; // This stops the script right here
+        } else {
+            console.log("✅ Cookie found:", robloxCookie.value);
+            // You can add your API call here if needed
         }
 
-        // 4. If found, print it
-        console.log("✅ Logged in! Found .ROBLOSECURITY cookie:");
-        console.log(robloxCookie.value);
-
-        // Optional: If you want to send it to your API instead of printing
-        /*
-        const fetch = require('node-fetch');
-        await fetch('https://your-website.com/api/save-cookie', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ cookie: robloxCookie.value })
-        });
-        */
-
     } catch (error) {
-        console.error("Error:", error.message);
+        console.error("❌ Error:", error.message);
     } finally {
-        // 5. Always close the browser
-        await browser.close();
+        // 6. Disconnect cleanly
+        console.log("Disconnected from Browserless.");
     }
 })();
