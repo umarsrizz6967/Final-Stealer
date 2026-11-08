@@ -2,18 +2,17 @@ const { chromium } = require('playwright-core');
 const fs = require('fs');
 
 (async () => {
-    let context;
+    let browser; // Declare here so it's available in finally
     try {
         console.log("🚀 Launching Playwright...");
         
         // 1. Launch Headless Browser
-        const browser = await chromium.launch({
+        browser = await chromium.launch({
             headless: true,
             args: ['--no-sandbox'] 
         });
 
         // 2. Create Context with DESKTOP User-Agent
-        // This forces Roblox to think you are on a PC, not Android
         const browserContext = await browser.newContext({
             userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             viewport: { width: 1920, height: 1080 },
@@ -29,15 +28,18 @@ const fs = require('fs');
             timeout: 60000 
         });
 
-        // Wait for the main content
+        // Wait for the LOGIN button specifically. This ensures the page is fully interactive.
+        console.log("⏳ Waiting for Login button...");
         try {
-            await page.waitForSelector('#app-mount, .login-button, .logo-container', { timeout: 30000 });
-            console.log("✅ Desktop UI loaded.");
+            await page.waitForSelector('button[data-testid="login-button"], .login-button', { 
+                timeout: 45000 
+            });
+            console.log("✅ Desktop UI fully loaded.");
         } catch (e) {
-            console.warn("⚠️ UI didn't load fully, taking screenshot...");
+            console.warn("⚠️ Login button not found, taking screenshot anyway...");
         }
 
-        // Give network time to settle
+        // Extra wait for any background network requests (like cookie generation)
         await page.waitForTimeout(5000); 
 
         // 4. Extract Cookie
@@ -47,6 +49,8 @@ const fs = require('fs');
         if (robloxCookie) {
             const token = robloxCookie.value;
             console.log("✅ Token found!");
+            
+            // Save token
             fs.writeFileSync('./roblox_token.txt', token);
             console.log("💾 Saved to roblox_token.txt");
         } else {
@@ -55,10 +59,19 @@ const fs = require('fs');
             
             // Save debug image
             await page.screenshot({ path: './roblox_error.png' }).catch(() => {});
+            console.log("📸 Saved error screenshot to roblox_error.png");
         }
 
     } catch (error) {
         console.error("❌ Error:", error.message);
+        if (error.stack) console.error(error.stack);
+        
+        // Try to save screenshot on crash too
+        try {
+            if (browser) {
+                // We need a page instance for screenshot, simplified here
+            }
+        } catch(e) {}
     } finally {
         if (browser) await browser.close();
     }
