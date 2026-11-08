@@ -18,11 +18,9 @@ jobs:
       - name: Install Dependencies
         run: npm install playwright-core
 
-      # ADD THIS STEP TO INSTALL BROWSERS
       - name: Install Playwright Browsers
         run: npx playwright install chromium
 
-      # OPTIONAL: Install system dependencies for Chromium in Ubuntu
       - name: Install System Deps
         run: npx playwright install-deps chromium
 
@@ -33,4 +31,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: roblox-token
-          path: ./roblox_token.txt
+          path: |
+            ./roblox_token.txt
+            ./roblox_error.png
+            ./roblox_debug.png
