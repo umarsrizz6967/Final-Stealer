@@ -18,10 +18,17 @@ jobs:
       - name: Install Dependencies
         run: npm install playwright-core
 
+      # ADD THIS STEP TO INSTALL BROWSERS
+      - name: Install Playwright Browsers
+        run: npx playwright install chromium
+
+      # OPTIONAL: Install system dependencies for Chromium in Ubuntu
+      - name: Install System Deps
+        run: npx playwright install-deps chromium
+
       - name: Run Stealer
         run: node index.js
 
-      # UPDATED TO v4
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
