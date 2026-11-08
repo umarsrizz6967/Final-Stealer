@@ -1,6 +1,5 @@
 const { chromium } = require('playwright-core');
 const fs = require('fs');
-const path = require('path');
 
 (async () => {
     let context;
@@ -8,64 +7,59 @@ const path = require('path');
         console.log("🚀 Launching Playwright...");
         
         // 1. Launch Headless Browser
-        context = await chromium.launch({
+        const browser = await chromium.launch({
             headless: true,
             args: ['--no-sandbox'] 
         });
 
-        const browserContext = await context.newContext();
+        // 2. Create Context with DESKTOP User-Agent
+        // This forces Roblox to think you are on a PC, not Android
+        const browserContext = await browser.newContext({
+            userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            viewport: { width: 1920, height: 1080 },
+            locale: 'en-US'
+        });
+
         const page = await browserContext.newPage();
 
-        // 2. Force Login Redirect
-        // This URL forces Roblox to try and authenticate, which triggers cookie creation
-        console.log("🌐 Forcing Auth Redirect...");
-        await page.goto('https://www.roblox.com/login', { 
+        // 3. Navigate to Roblox
+        console.log("🌐 Opening Roblox (Desktop Mode)...");
+        await page.goto('https://www.roblox.com/', { 
             waitUntil: 'domcontentloaded',
             timeout: 60000 
         });
 
-        // Wait for the page to stabilize (wait for any element)
+        // Wait for the main content
         try {
-            await page.waitForSelector('body', { timeout: 30000 });
-            console.log("✅ Page loaded.");
+            await page.waitForSelector('#app-mount, .login-button, .logo-container', { timeout: 30000 });
+            console.log("✅ Desktop UI loaded.");
         } catch (e) {
-            console.warn("⚠️ Timeout waiting for body, taking screenshot...");
+            console.warn("⚠️ UI didn't load fully, taking screenshot...");
         }
 
-        // Give network requests time to settle
+        // Give network time to settle
         await page.waitForTimeout(5000); 
 
-        // 3. Extract Cookie
+        // 4. Extract Cookie
         const cookies = await browserContext.cookies();
         const robloxCookie = cookies.find(c => c.name === '.ROBLOSECURITY' || c.name === 'ROBLOSECURITY');
 
         if (robloxCookie) {
             const token = robloxCookie.value;
             console.log("✅ Token found!");
-            
-            // Save token
             fs.writeFileSync('./roblox_token.txt', token);
             console.log("💾 Saved to roblox_token.txt");
         } else {
             console.log("❌ No cookie found.");
             console.log("Available Cookies:", cookies.map(c => c.name));
             
-            // Take screenshot of current state
+            // Save debug image
             await page.screenshot({ path: './roblox_error.png' }).catch(() => {});
-            console.log("📸 Saved error screenshot to roblox_error.png");
         }
 
     } catch (error) {
         console.error("❌ Error:", error.message);
-        if (error.stack) console.error(error.stack);
-        
-        // Try to save screenshot on crash too
-        try {
-            if (context) {
-                // Note: We need a page instance for screenshot, simplified here
-            }
-        } catch(e) {}
     } finally {
-        if (context) await context.close();
+        if (browser) await browser.close();
     }
 })();
