@@ -1,5 +1,5 @@
 {
-  "name": "roblox-cookie-fetcher",
+  "name": "roblox-local-fetcher",
   "version": "1.0.0",
   "scripts": {
     "start": "node index.js"
