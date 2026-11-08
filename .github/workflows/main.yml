@@ -1,5 +1,4 @@
-
-name: Roblox Stealer
+name: Browser Test
 
 on:
   push:
@@ -22,7 +21,8 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Connect to Browserless
+      - name: Install Chromium
+        run: npx playwright-core install chromium --with-deps
+
+      - name: Run Script
         run: node index.js
-        env:
-          BROWSERLESS_TOKEN: ${{ secrets.BROWSERLESS_TOKEN }}
