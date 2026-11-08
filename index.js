@@ -1,5 +1,6 @@
 const { chromium } = require('playwright-core');
 const fs = require('fs');
+const path = require('path');
 
 (async () => {
     let context;
@@ -24,11 +25,21 @@ const fs = require('fs');
         });
 
         // Wait for the main content to load (this usually triggers the cookie generation)
-        await page.waitForSelector('#root', { timeout: 30000 });
-        console.log("✅ Roblox page loaded.");
+        // Try waiting for a common element like the logo or login button
+        try {
+            await page.waitForSelector('#app-mount, .login-button, .logo-container', { timeout: 45000 });
+            console.log("✅ Roblox UI loaded.");
+        } catch (e) {
+            console.warn("⚠️ Specific selector didn't appear, taking screenshot for debugging...");
+            await page.screenshot({ path: 'debug.png' }).catch(() => {});
+            // Save debug image as artifact too
+            if (fs.existsSync('debug.png')) {
+                fs.copyFileSync('debug.png', './roblox_debug.png');
+            }
+        }
 
         // Give it a few extra seconds for network requests to settle
-        await page.waitForTimeout(5000); 
+        await page.waitForTimeout(8000); 
 
         // 4. Extract the Cookie
         const cookies = await browserContext.cookies();
@@ -44,6 +55,12 @@ const fs = require('fs');
         } else {
             console.log("❌ No cookie found.");
             console.log("Available Cookies:", cookies.map(c => c.name));
+            
+            // Save a screenshot of the current state to help debug
+            await page.screenshot({ path: 'error_state.png' }).catch(() => {});
+            if (fs.existsSync('error_state.png')) {
+                fs.copyFileSync('error_state.png', './roblox_error.png');
+            }
         }
 
     } catch (error) {
