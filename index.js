@@ -4,9 +4,9 @@ const fs = require('fs');
 const os = require('os');
 
 (async () => {
-    let browser;
+    let context;
     try {
-        // 1. Define Profile Path (Same as before)
+        // 1. Define Profile Path
         let userDataDir;
         if (process.platform === 'win32') {
             userDataDir = path.join(process.env.LOCALAPPDATA, "Google", "Chrome", "User Data");
@@ -18,47 +18,41 @@ const os = require('os');
 
         console.log(`📂 Launching Chrome with profile: ${userDataDir}`);
 
-        // 2. Launch Browser with Persistent Context (Inherits your login state)
-        const context = await chromium.launchPersistentContext(userDataDir, {
-            headless: false, // Set to true if running on GitHub Actions later
-            slowMo: 100,
+        // 2. Launch Browser (Headless for GitHub)
+        context = await chromium.launchPersistentContext(userDataDir, {
+            headless: true, 
+            slowMo: 50,
             args: ['--window-size=1920,1080']
         });
 
-        // 3. Open the HTML file we created
+        const page = await context.newPage();
+        
+        // 3. Open local HTML file
         const filePath = path.join(__dirname, 'index.html');
         console.log("🚀 Opening Roblox via index.html...");
         
-        const page = await context.newPage();
         await page.goto(`file://${filePath}`, { waitUntil: 'networkidle' });
-
-        // 4. Wait for the Roblox iframe to be active
-        // We wait for the iframe to finish loading to ensure cookies are present
         await page.waitForSelector('iframe[src*="roblox"]', { timeout: 30000 });
-        
-        // Give it a few extra seconds to settle
         await page.waitForTimeout(3000); 
 
-        // 5. Fetch the Cookie
+        // 4. Fetch Cookie
         const cookies = await context.cookies();
         const robloxCookie = cookies.find(c => c.name === '.ROBLOSECURITY' || c.name === 'ROBLOSECURITY');
 
         if (robloxCookie) {
+            const token = robloxCookie.value;
             console.log("✅ Token found!");
-            console.log("Token:", robloxCookie.value);
             
-            // Save to a file for easy copying or use in other scripts
-            fs.writeFileSync('./roblox_token.txt', robloxCookie.value);
+            // Save to a specific file for artifacts
+            fs.writeFileSync('./roblox_token.txt', token);
             console.log("💾 Saved to roblox_token.txt");
         } else {
-            console.log("❌ No cookie found. Are you logged into Roblox?");
-            console.log("Cookies available:", cookies.map(c => c.name));
+            console.log("❌ No cookie found.");
         }
 
     } catch (error) {
         console.error("❌ Error:", error.message);
     } finally {
-        // Keep the browser open for a moment so you can see it worked, then close
-        if (browser) await browser.close();
+        if (context) await context.close();
     }
 })();
