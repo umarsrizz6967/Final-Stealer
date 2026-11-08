@@ -4,6 +4,8 @@ const os = require('os');
 const fs = require('fs');
 
 (async () => {
+    let browserContext; // Define here so it's available in finally
+
     // 1. Detect OS and find the correct User Data Path
     let userDataDir;
     
@@ -14,26 +16,43 @@ const fs = require('fs');
     } else if (process.platform === 'darwin') {
         userDataDir = path.join(os.homedir(), "Library", "Application Support", "Google", "Chrome");
     } else {
-        // Linux / GitHub Actions
+        // Linux / GitHub Actions / Replit
+        // Try standard Chrome first, then fallback to Chromium or other browsers
         userDataDir = path.join(os.homedir(), ".config", "google-chrome");
+        if (!fs.existsSync(userDataDir)) {
+            userDataDir = path.join(os.homedir(), ".config", "chromium");
+        }
+        if (!fs.existsSync(userDataDir)) {
+            console.warn("⚠️ Warning: Could not find default browser profile. Using default context.");
+            userDataDir = null;
+        }
     }
 
-    console.log("Using Profile:", userDataDir);
+    if (userDataDir) {
+        console.log("Using Profile:", userDataDir);
+    }
 
     // 2. Determine Headless mode
-    // If running in GitHub Actions, force headless. Otherwise, allow headed for debugging.
     const isCI = process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true';
     const headlessMode = isCI ? true : false; 
 
-    console.log(`Running in ${headlessMode ? 'Headless' : 'Headed'} Mode`);
-
     try {
         // 3. Launch the browser using YOUR existing profile
-        const browserContext = await chromium.launchPersistentContext(userDataDir, {
-            headless: headlessMode, 
+        const launchArgs = {
             slowMo: 500,
             args: ['--window-size=1920,1080']
-        });
+        };
+
+        if (userDataDir) {
+            browserContext = await chromium.launchPersistentContext(userDataDir, {
+                headless: headlessMode, 
+                ...launchArgs
+            });
+        } else {
+            // Fallback if no profile found
+            const browser = await chromium.launch({ headless: headlessMode, ...launchArgs });
+            browserContext = browser.contexts()[0];
+        }
 
         // 4. Get the page
         const pages = browserContext.pages();
@@ -78,8 +97,8 @@ const fs = require('fs');
     } catch (error) {
         console.error("❌ Error:", error.message);
     } finally {
-        // Keep open if headed so you can inspect, close if headless
-        if (headlessMode) {
+        // 7. Safe closure
+        if (browserContext) {
             await browserContext.close();
         }
     }
