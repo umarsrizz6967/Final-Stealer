@@ -4,68 +4,67 @@ const os = require('os');
 const fs = require('fs');
 
 (async () => {
-    let browser;
     let context;
-    let page;
+    let browser; // Only used if fallback is triggered
 
-    // 1. Find Local Chrome Profile Path
-    let userDataDir = null;
+    // 1. Determine Profile Path
+    // Priority: 
+    // 1. ENV_VAR (for CI flexibility)
+    // 2. Standard Local Paths (for local testing)
     
-    if (process.platform === 'win32') {
-        const chromePath = path.join(process.env.LOCALAPPDATA, "Google", "Chrome", "User Data");
-        userDataDir = fs.existsSync(chromePath) ? chromePath : null;
-    } else if (process.platform === 'darwin') {
-        userDataDir = path.join(os.homedir(), "Library", "Application Support", "Google", "Chrome");
-    } else {
-        // Linux / CI
-        userDataDir = path.join(os.homedir(), ".config", "google-chrome");
-        if (!fs.existsSync(userDataDir)) {
-            userDataDir = path.join(os.homedir(), ".config", "chromium");
+    let userDataDir = process.env.CHROME_PROFILE_PATH;
+    
+    if (!userDataDir) {
+        if (process.platform === 'win32') {
+            userDataDir = path.join(process.env.LOCALAPPDATA, "Google", "Chrome", "User Data");
+        } else if (process.platform === 'darwin') {
+            userDataDir = path.join(os.homedir(), "Library", "Application Support", "Google", "Chrome");
+        } else {
+            userDataDir = path.join(os.homedir(), ".config", "google-chrome");
         }
     }
 
+    const profileExists = fs.existsSync(userDataDir);
+    
     try {
-        console.log("🚀 Launching Browser...");
+        console.log(`🚀 Launching with profile: ${userDataDir} (Exists: ${profileExists})`);
 
-        // 2. Decide how to launch
-        if (userDataDir && fs.existsSync(userDataDir)) {
-            console.log("📂 Using Local Profile:", userDataDir);
-            // Use persistent context to load your existing cookies/login state
+        if (profileExists) {
+            // Use Persistent Context to inherit existing cookies/login state
             context = await chromium.launchPersistentContext(userDataDir, {
-                headless: true, // Set to false if you want to see the login screen
-                slowMo: 100
+                headless: true, // Headless is fine if already logged in
+                slowMo: 50,
+                args: ['--window-size=1920,1080']
             });
         } else {
-            console.log("⚪ No local profile found. Launching fresh browser.");
+            console.warn("⚠️ No local profile found. Launching fresh browser.");
             browser = await chromium.launch({ headless: true });
             context = await browser.newContext();
         }
 
-        // 3. Get Page
+        // 2. Navigate to Roblox
         const pages = context.pages();
-        page = pages[0] || await context.newPage();
+        let page = pages[0];
+        if (!page || page.url() === 'about:blank') {
+            page = await context.newPage();
+        }
 
-        // 4. Navigate
         console.log("🌐 Navigating to Roblox...");
         await page.goto('https://www.roblox.com/', { waitUntil: 'networkidle' });
 
-        // 5. Check for Cookie
+        // 3. Fetch Cookie
         const cookies = await context.cookies();
         const robloxCookie = cookies.find(c => c.name === '.ROBLOSECURITY' || c.name === 'ROBLOSECURITY');
 
         if (robloxCookie) {
             console.log("✅ Success! Token found.");
             console.log("Token:", robloxCookie.value);
+            
+            // Optional: Save to file for next steps
+            fs.writeFileSync('./roblox_token.txt', robloxCookie.value);
         } else {
             console.log("❌ Not logged in.");
-            
-            // If we used a local profile but aren't logged in, maybe we need to log in?
-            // Or just exit if headless.
-            if (!userDataDir) {
-                 console.log("Fresh browser launched. No session available.");
-            } else {
-                 console.log("Local profile loaded but not logged in. Try setting headless: false to log in manually.");
-            }
+            console.log("Available Cookies:", cookies.map(c => c.name));
         }
 
     } catch (error) {
