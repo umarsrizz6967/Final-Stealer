@@ -18,20 +18,11 @@ jobs:
       - name: Install Dependencies
         run: npm install playwright-core
 
-      - name: Decode Chrome Profile
-        env:
-          PROFILE_ZIP: ${{ secrets.CHROME_PROFILE_ZIP }}
-        run: |
-          echo "$PROFILE_ZIP" > chrome-profile.b64
-          base64 -d chrome-profile.b64 > chrome-profile.zip
-          mkdir -p /tmp/chrome-profile
-          unzip -o chrome-profile.zip -d /tmp/chrome-profile/
-          # Adjust this path based on your zip structure
-          export CHROME_PROFILE_PATH="/tmp/chrome-profile/User Data" 
+      # Optional: Install Chromium dependencies if Playwright fails to launch
+      - name: Install System Deps
+        run: npx playwright install-deps chromium
 
       - name: Run Stealer
-        env:
-          CHROME_PROFILE_PATH: ${{ env.CHROME_PROFILE_PATH }}
         run: node index.js
 
       - name: Upload Artifact
