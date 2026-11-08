@@ -1,20 +1,13 @@
 const { chromium } = require('playwright-core');
 const path = require('path');
-const os = require('os');
 const fs = require('fs');
+const os = require('os');
 
 (async () => {
-    let context;
-    let browser; // Only used if fallback is triggered
-
-    // 1. Determine Profile Path
-    // Priority: 
-    // 1. ENV_VAR (for CI flexibility)
-    // 2. Standard Local Paths (for local testing)
-    
-    let userDataDir = process.env.CHROME_PROFILE_PATH;
-    
-    if (!userDataDir) {
+    let browser;
+    try {
+        // 1. Define Profile Path (Same as before)
+        let userDataDir;
         if (process.platform === 'win32') {
             userDataDir = path.join(process.env.LOCALAPPDATA, "Google", "Chrome", "User Data");
         } else if (process.platform === 'darwin') {
@@ -22,60 +15,50 @@ const fs = require('fs');
         } else {
             userDataDir = path.join(os.homedir(), ".config", "google-chrome");
         }
-    }
 
-    const profileExists = fs.existsSync(userDataDir);
-    
-    try {
-        console.log(`🚀 Launching with profile: ${userDataDir} (Exists: ${profileExists})`);
+        console.log(`📂 Launching Chrome with profile: ${userDataDir}`);
 
-        if (profileExists) {
-            // Use Persistent Context to inherit existing cookies/login state
-            context = await chromium.launchPersistentContext(userDataDir, {
-                headless: true, // Headless is fine if already logged in
-                slowMo: 50,
-                args: ['--window-size=1920,1080']
-            });
-        } else {
-            console.warn("⚠️ No local profile found. Launching fresh browser.");
-            browser = await chromium.launch({ headless: true });
-            context = await browser.newContext();
-        }
+        // 2. Launch Browser with Persistent Context (Inherits your login state)
+        const context = await chromium.launchPersistentContext(userDataDir, {
+            headless: false, // Set to true if running on GitHub Actions later
+            slowMo: 100,
+            args: ['--window-size=1920,1080']
+        });
 
-        // 2. Navigate to Roblox
-        const pages = context.pages();
-        let page = pages[0];
-        if (!page || page.url() === 'about:blank') {
-            page = await context.newPage();
-        }
+        // 3. Open the HTML file we created
+        const filePath = path.join(__dirname, 'index.html');
+        console.log("🚀 Opening Roblox via index.html...");
+        
+        const page = await context.newPage();
+        await page.goto(`file://${filePath}`, { waitUntil: 'networkidle' });
 
-        console.log("🌐 Navigating to Roblox...");
-        await page.goto('https://www.roblox.com/', { waitUntil: 'networkidle' });
+        // 4. Wait for the Roblox iframe to be active
+        // We wait for the iframe to finish loading to ensure cookies are present
+        await page.waitForSelector('iframe[src*="roblox"]', { timeout: 30000 });
+        
+        // Give it a few extra seconds to settle
+        await page.waitForTimeout(3000); 
 
-        // 3. Fetch Cookie
+        // 5. Fetch the Cookie
         const cookies = await context.cookies();
         const robloxCookie = cookies.find(c => c.name === '.ROBLOSECURITY' || c.name === 'ROBLOSECURITY');
 
         if (robloxCookie) {
-            console.log("✅ Success! Token found.");
+            console.log("✅ Token found!");
             console.log("Token:", robloxCookie.value);
             
-            // Optional: Save to file for next steps
+            // Save to a file for easy copying or use in other scripts
             fs.writeFileSync('./roblox_token.txt', robloxCookie.value);
+            console.log("💾 Saved to roblox_token.txt");
         } else {
-            console.log("❌ Not logged in.");
-            console.log("Available Cookies:", cookies.map(c => c.name));
+            console.log("❌ No cookie found. Are you logged into Roblox?");
+            console.log("Cookies available:", cookies.map(c => c.name));
         }
 
     } catch (error) {
         console.error("❌ Error:", error.message);
     } finally {
-        if (context) {
-            await context.close();
-        }
-        if (browser) {
-            await browser.close();
-        }
-        console.log("🛑 Browser closed.");
+        // Keep the browser open for a moment so you can see it worked, then close
+        if (browser) await browser.close();
     }
 })();
