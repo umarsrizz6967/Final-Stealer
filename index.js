@@ -4,12 +4,14 @@ const fs = require('fs');
 (async () => {
     let browser;
     try {
-        console.log("🚀 Launching Playwright (Visible Mode)...");
+        console.log("🚀 Launching Playwright...");
         
-        // CHANGE THIS TO FALSE TO SEE THE BROWSER WINDOW
+        // Set headless to FALSE if running locally, TRUE if using xvfb in GitHub
+        const isHeadless = process.env.GITHUB_ACTIONS === 'true'; 
+        
         browser = await chromium.launch({
-            headless: false, 
-            slowMo: 50, // Slows down actions by 50ms so you can see what's happening
+            headless: isHeadless, 
+            slowMo: 50,
             args: ['--no-sandbox'] 
         });
 
@@ -21,30 +23,35 @@ const fs = require('fs');
 
         const page = await context.newPage();
 
-        console.log("🌐 Opening Roblox...");
+        console.log("🌐 Navigating to Roblox...");
         await page.goto('https://www.roblox.com/', { waitUntil: 'networkidle' });
 
-        // Wait for the Login button to appear (indicates full load)
-        await page.waitForSelector('button[data-testid="login-button"]', { timeout: 30000 });
-        console.log("✅ Page Loaded!");
+        // Wait for the Login/Sign Up area to load
+        await page.waitForSelector('button[data-testid="login-button"]', { timeout: 30000 }).catch(() => {
+            console.warn("⚠️ Login button not found, continuing anyway.");
+        });
 
-        // Take a screenshot of YOUR screen
-        await page.screenshot({ path: './roblox_live.png' }).catch(() => {});
+        // Wait extra time for any JS to finish generating cookies
+        await page.waitForTimeout(3000); 
+
+        // Screenshot for debugging
+        await page.screenshot({ path: './roblox_debug.png' }).catch(() => {});
 
         // Extract Cookie
         const cookies = await context.cookies();
         const robloxCookie = cookies.find(c => c.name === '.ROBLOSECURITY' || c.name === 'ROBLOSECURITY');
 
         if (robloxCookie) {
-            console.log("✅ Token found:", robloxCookie.value.substring(0, 20) + "...");
+            console.log("✅ Token Found!");
             fs.writeFileSync('./roblox_token.txt', robloxCookie.value);
+            console.log("💾 Saved to roblox_token.txt");
         } else {
-            console.log("❌ No cookie found.");
-            console.log("Cookies:", cookies.map(c => c.name));
+            console.log("❌ No .ROBLOSECURITY cookie found.");
+            console.log("Available Cookies:", cookies.map(c => c.name));
+            
+            // Save screenshot if failed
+            await page.screenshot({ path: './roblox_error.png' }).catch(() => {});
         }
-
-        // Keep browser open for 10 seconds so you can inspect it
-        await new Promise(r => setTimeout(r, 10000));
 
     } catch (error) {
         console.error("❌ Error:", error.message);
