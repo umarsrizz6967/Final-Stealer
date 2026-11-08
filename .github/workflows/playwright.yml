@@ -1,26 +1,29 @@
-
-name: Playwright Browserless Test
+name: Local Roblox Cookie Fetcher
 
 on:
-  workflow_dispatch:
+  push:
+    branches: [ main ]
+  workflow_dispatch: # Allows you to run it manually from the Actions tab
 
 jobs:
-  test:
+  fetch-cookie:
     runs-on: ubuntu-latest
-
+    
     steps:
-      - name: Checkout repository
+      - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: '20'
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
-      - name: Run Playwright
+      - name: Install Playwright Browsers
+        # This downloads Chromium to the runner's environment
+        run: npx playwright install chromium --with-deps
+
+      - name: Run Script
         run: node index.js
-        env:
-          BROWSERLESS_TOKEN: ${{ secrets.BROWSERLESS_TOKEN }}
