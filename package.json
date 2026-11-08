@@ -1,10 +1,12 @@
 {
-  "name": "roblox-local-fetcher",
+  "name": "roblox-cookie-fetcher",
   "version": "1.0.0",
+  "description": "Fetches Roblox cookie using Playwright",
+  "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
   "dependencies": {
-    "playwright-core": "^1.56.0"
+    "playwright-core": "^1.48.0"
   }
 }
