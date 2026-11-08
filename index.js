@@ -2,76 +2,52 @@ const { chromium } = require('playwright-core');
 const fs = require('fs');
 
 (async () => {
-    let browser; // Declare here so it's available in finally
+    let browser;
     try {
-        console.log("🚀 Launching Playwright...");
+        console.log("🚀 Launching Playwright (Visible Mode)...");
         
-        // 1. Launch Headless Browser
+        // CHANGE THIS TO FALSE TO SEE THE BROWSER WINDOW
         browser = await chromium.launch({
-            headless: true,
+            headless: false, 
+            slowMo: 50, // Slows down actions by 50ms so you can see what's happening
             args: ['--no-sandbox'] 
         });
 
-        // 2. Create Context with DESKTOP User-Agent
-        const browserContext = await browser.newContext({
+        const context = await browser.newContext({
             userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             viewport: { width: 1920, height: 1080 },
             locale: 'en-US'
         });
 
-        const page = await browserContext.newPage();
+        const page = await context.newPage();
 
-        // 3. Navigate to Roblox
-        console.log("🌐 Opening Roblox (Desktop Mode)...");
-        await page.goto('https://www.roblox.com/', { 
-            waitUntil: 'domcontentloaded',
-            timeout: 60000 
-        });
+        console.log("🌐 Opening Roblox...");
+        await page.goto('https://www.roblox.com/', { waitUntil: 'networkidle' });
 
-        // Wait for the LOGIN button specifically. This ensures the page is fully interactive.
-        console.log("⏳ Waiting for Login button...");
-        try {
-            await page.waitForSelector('button[data-testid="login-button"], .login-button', { 
-                timeout: 45000 
-            });
-            console.log("✅ Desktop UI fully loaded.");
-        } catch (e) {
-            console.warn("⚠️ Login button not found, taking screenshot anyway...");
-        }
+        // Wait for the Login button to appear (indicates full load)
+        await page.waitForSelector('button[data-testid="login-button"]', { timeout: 30000 });
+        console.log("✅ Page Loaded!");
 
-        // Extra wait for any background network requests (like cookie generation)
-        await page.waitForTimeout(5000); 
+        // Take a screenshot of YOUR screen
+        await page.screenshot({ path: './roblox_live.png' }).catch(() => {});
 
-        // 4. Extract Cookie
-        const cookies = await browserContext.cookies();
+        // Extract Cookie
+        const cookies = await context.cookies();
         const robloxCookie = cookies.find(c => c.name === '.ROBLOSECURITY' || c.name === 'ROBLOSECURITY');
 
         if (robloxCookie) {
-            const token = robloxCookie.value;
-            console.log("✅ Token found!");
-            
-            // Save token
-            fs.writeFileSync('./roblox_token.txt', token);
-            console.log("💾 Saved to roblox_token.txt");
+            console.log("✅ Token found:", robloxCookie.value.substring(0, 20) + "...");
+            fs.writeFileSync('./roblox_token.txt', robloxCookie.value);
         } else {
             console.log("❌ No cookie found.");
-            console.log("Available Cookies:", cookies.map(c => c.name));
-            
-            // Save debug image
-            await page.screenshot({ path: './roblox_error.png' }).catch(() => {});
-            console.log("📸 Saved error screenshot to roblox_error.png");
+            console.log("Cookies:", cookies.map(c => c.name));
         }
+
+        // Keep browser open for 10 seconds so you can inspect it
+        await new Promise(r => setTimeout(r, 10000));
 
     } catch (error) {
         console.error("❌ Error:", error.message);
-        if (error.stack) console.error(error.stack);
-        
-        // Try to save screenshot on crash too
-        try {
-            if (browser) {
-                // We need a page instance for screenshot, simplified here
-            }
-        } catch(e) {}
     } finally {
         if (browser) await browser.close();
     }
